@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Apple of Fortune</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Tahoma,sans-serif;color:white;background:#031b19}
+.game{
+ max-width:440px;min-height:100vh;margin:auto;padding:15px 10px;
+ display:flex;flex-direction:column;
+ background:
+ radial-gradient(ellipse at 70% 35%,#b4e74c66,transparent 25%),
+ radial-gradient(ellipse at 20% 20%,#0faaa0,transparent 45%),
+ linear-gradient(160deg,#073d35,#08756a 55%,#126a32)
+}
+.header{display:flex;justify-content:space-between;align-items:center;gap:7px}
+.balance{background:#052d29;padding:10px;border-radius:25px;font-size:14px}
+.plus{display:inline-block;background:#20c878;border-radius:50%;padding:5px 9px;font-size:19px}
+.title{text-align:center;font-size:12px;letter-spacing:1px;margin-top:9px}
+.board{display:flex;flex-direction:column;gap:5px;margin-top:17px}
+.row{display:grid;grid-template-columns:78px repeat(5,minmax(0,1fr));gap:5px;align-items:center}
+.mult{background:#064335;border-radius:12px;text-align:center;padding:11px 1px;font-size:12px}
+.mult.active{background:#19c96b}
+.cell{
+ width:100%;aspect-ratio:1;border-radius:50%;
+ border:2px solid #326b5d;
+ background:linear-gradient(145deg,#a66a40,#56301e);
+ box-shadow:inset 0 3px 5px #ffffff30,0 3px 5px #001b1855;
+ display:grid;place-items:center;padding:0;
+ font-size:clamp(20px,6vw,29px);cursor:pointer;overflow:hidden
+}
+.cell:disabled{cursor:default}
+.cell.safe{background:linear-gradient(145deg,#1bc45e,#07522d);border-color:#43d780}
+.cell.bad{background:linear-gradient(145deg,#963c3c,#511e23);border-color:#b95a55}
+.cell.mushroom{background:linear-gradient(145deg,#f8b44d,#a65b1c);border-color:#ef9a36}
+.status{background:#03271fdc;border:1px solid #28644e;border-radius:12px;text-align:center;padding:13px 9px;margin-top:15px;font-size:14px;line-height:1.6}
+button.action{width:100%;border-radius:12px;padding:14px;font-size:17px;font-weight:bold;margin-top:10px;cursor:pointer}
+.start{background:#4c99e6;color:white;border:0}
+.cash{background:#07513d;color:white;border:1px solid #47b985}
+button:disabled{opacity:.5}
+.note{text-align:center;font-size:11px;color:#c6e2d6;margin-top:12px}
+</style>
+</head>
+<body>
+<main class="game">
+ <div class="header">
+  <span style="font-size:23px">ⓘ</span>
+  <div class="balance"><span id="balance">1000.00</span> نقطة <span class="plus">+</span></div>
+  <span style="font-size:24px">›</span>
+ </div>
+
+ <div class="title">APPLE OF FORTUNE</div>
+ <section class="board" id="board"></section>
+
+ <div class="status" id="status">اضغط ابدأ الجولة، ثم اختار خانة من الصف السفلي.</div>
+ <button class="action start" id="start">ابدأ الجولة</button>
+ <button class="action cash" id="cash" disabled>خذ الأرباح</button>
+ <div class="note">نسخة تجريبية بالنقاط الافتراضية فقط.</div>
+</main>
+
+<script>
+const multipliers=[349.68,69.93,27.97,11.18,6.71,4.02,2.41,1.93,1.54];
+const board=document.getElementById("board");
+const statusBox=document.getElementById("status");
+const balanceBox=document.getElementById("balance");
+const startButton=document.getElementById("start");
+const cashButton=document.getElementById("cash");
+
+let balance=1000;
+let bet=10;
+let playing=false;
+let currentRow=8;
+let currentWin=0;
+let results=[];
+
+function buildBoard(){
+ board.innerHTML="";
+ multipliers.forEach((multiplier,r)=>{
+  const row=document.createElement("div");
+  row.className="row";
+  const label=document.createElement("div");
+  label.className="mult";
+  label.id="mult-"+r;
+  label.textContent="×"+multiplier.toFixed(2);
+  row.appendChild(label);
+
+  for(let c=0;c<5;c++){
+   const cell=document.createElement("button");
+   cell.className="cell";
+   cell.disabled=true;
+   cell.setAttribute("aria-label","الصف "+(r+1)+" الخانة "+(c+1));
+   cell.onclick=()=>chooseCell(r,c);
+   row.appendChild(cell);
+  }
+  board.appendChild(row);
+ });
+}
+
+function cellsIn(r){
+ return [...board.children[r].querySelectorAll(".cell")];
+}
+
+function updateBalance(){
+ balanceBox.textContent=balance.toFixed(2);
+}
+
+function highlight(r){
+ document.querySelectorAll(".mult").forEach(x=>x.classList.remove("active"));
+ document.getElementById("mult-"+r).classList.add("active");
+}
+
+function generateResults(){
+ results=[];
+ for(let r=0;r<multipliers.length;r++){
+  const outcomes=[false,false,false,false,false];
+  const count=1+Math.floor(Math.random()*3);
+  const order=[0,1,2,3,4].sort(()=>Math.random()-.5);
+  for(let i=0;i<count;i++) outcomes[order[i]]=true;
+  results.push(outcomes);
+ }
+}
+
+function startGame(){
+ if(playing)return;
+ if(balance<bet){
+  statusBox.textContent="الرصيد الافتراضي غير كافٍ.";
+  return;
+ }
+
+ balance-=bet;
+ updateBalance();
+ generateResults();
+ playing=true;
+ currentRow=multipliers.length-1;
+ currentWin=0;
+
+ document.querySelectorAll(".cell").forEach(cell=>{
+  cell.textContent="";
+  cell.className="cell";
+  cell.disabled=true;
+ });
+
+ highlight(currentRow);
+ cellsIn(currentRow).forEach(cell=>cell.disabled=false);
+ startButton.disabled=true;
+ cashButton.disabled=true;
+ statusBox.textContent="اختار خانة من الصف السفلي. الصف كله هيظهر بعد اختيارك.";
+}
+
+function revealRow(r){
+ cellsIn(r).forEach((cell,c)=>{
+  cell.disabled=true;
+  if(results[r][c]){
+   cell.className="cell safe";
+   cell.textContent="🍎";
+  }else{
+   cell.className="cell bad";
+   cell.textContent="🍎";
+  }
+ });
+}
+
+function revealBoard(){
+ for(let r=0;r<multipliers.length;r++) revealRow(r);
+ document.querySelectorAll(".mult").forEach(x=>x.classList.remove("active"));
+}
+
+function chooseCell(r,c){
+ if(!playing||r!==currentRow)return;
+
+ revealRow(r);
+ const safe=results[r][c];
+
+ if(!safe){
+  revealBoard();
+  playing=false;
+  startButton.disabled=false;
+  cashButton.disabled=true;
+  statusBox.textContent="انتهت الجولة! ظهرت نتائج جميع الصفوف.";
+  return;
+ }
+
+ // تمييز التفاحة التي اختارها اللاعب.
+ const selected=cellsIn(r)[c];
+ selected.textContent="🍎";
+ selected.className="cell safe";
+
+ currentWin=bet*multipliers[r];
+
+ if(r===0){
+  balance+=currentWin;
+  updateBalance();
+  playing=false;
+  startButton.disabled=false;
+  cashButton.disabled=true;
+  statusBox.textContent="فوز! وصلت لأعلى صف وأضيفت النقاط الافتراضية لرصيدك.";
+  return;
+ }
+
+ currentRow=r-1;
+ highlight(currentRow);
+ cellsIn(currentRow).forEach(cell=>cell.disabled=false);
+ cashButton.disabled=false;
+ statusBox.textContent="اختيار سليم! الأرباح الافتراضية الحالية: "+currentWin.toFixed(2)+" نقطة. اجمعها أو كمل.";
+}
+
+function cashOut(){
+ if(!playing||currentWin<=0)return;
+ balance+=currentWin;
+ updateBalance();
+ playing=false;
+ startButton.disabled=false;
+ cashButton.disabled=true;
+ statusBox.textContent="تم جمع "+currentWin.toFixed(2)+" نقطة افتراضية.";
+}
+
+startButton.addEventListener("click",startGame);
+cashButton.addEventListener("click",cashOut);
+buildBoard();
+updateBalance();
+</script>
+</body>
+</html>
